@@ -1,51 +1,109 @@
-import folium
-import random
 import math
-import time
-import webbrowser
+import random
+import pygame  # For simulation/visualization
 
-# Class to represent an incoming threat (rocket/missile)
-class Threat:
-    def __init__(self, lat, lon, speed):
-        self.lat = lat  # Latitude of the threat
-        self.lon = lon  # Longitude of the threat
-        self.speed = speed  # Speed of the threat
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+MISSILE_SPEED = 5  # Speed of incoming missile
+INTERCEPTOR_SPEED = 10  # Speed of interceptor missile
 
-    def move(self):
-        """Simulate the movement of the threat."""
-        self.lat += self.speed * random.uniform(0.01, 0.05)  # Simulate movement in latitude
-        self.lon += self.speed * random.uniform(0.01, 0.05)  # Simulate movement in longitude
+# Initialize Pygame
+pygame.init()
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
-# Initialize the target area (for example, somewhere in Israel)
-target_lat = 32.0857
-target_lon = 34.7818
+# Missile class: represents an incoming threat
+class Missile:
+    def __init__(self, start_x, start_y, target_x, target_y):
+        self.x = start_x
+        self.y = start_y
+        self.target_x = target_x
+        self.target_y = target_y
+        self.speed = MISSILE_SPEED
+        self.angle = math.atan2(target_y - start_y, target_x - start_x)
 
-# Initialize the Iron Dome system
-target_area = folium.Marker([target_lat, target_lon], popup="Target Area", icon=folium.Icon(color="red"))
+    def update_position(self):
+        # Move the missile along its trajectory
+        self.x += self.speed * math.cos(self.angle)
+        self.y += self.speed * math.sin(self.angle)
 
-# Initialize the threat (simulating incoming missile)
-threat = Threat(lat=random.uniform(32.0, 32.1), lon=random.uniform(34.7, 34.8), speed=0.002)
+    def is_at_target(self):
+        # Check if missile has reached its target
+        return math.hypot(self.x - self.target_x, self.y - self.target_y) < 5
 
-# Create a map centered on the target area
-m = folium.Map(location=[target_lat, target_lon], zoom_start=12)
+# Interceptor class: represents the defensive missile
+class Interceptor:
+    def __init__(self, start_x, start_y):
+        self.x = start_x
+        self.y = start_y
+        self.speed = INTERCEPTOR_SPEED
+        self.target_x = None
+        self.target_y = None
+        self.angle = None
 
-# Add the target area to the map
-target_area.add_to(m)
+    def calculate_interception(self, missile):
+        # Calculate interception point using basic geometry
+        self.target_x = missile.x
+        self.target_y = missile.y
+        self.angle = math.atan2(self.target_y - self.y, self.target_x - self.x)
 
-# Add the threat as a blue marker
-threat_marker = folium.Marker([threat.lat, threat.lon], popup="Incoming Threat", icon=folium.Icon(color="blue"))
-threat_marker.add_to(m)
+    def update_position(self):
+        # Move the interceptor toward the target (missile's current position)
+        if self.target_x and self.target_y:
+            self.x += self.speed * math.cos(self.angle)
+            self.y += self.speed * math.sin(self.angle)
 
-# Update the map in real-time
-for i in range(50):  # Simulate for 50 steps
-    time.sleep(0.5)  # Simulate a delay (for real-time-like updates)
-    threat.move()
+    def has_intercepted(self, missile):
+        # Check if the interceptor is close enough to destroy the missile
+        return math.hypot(self.x - missile.x, self.y - missile.y) < 5
 
-    # Update the threat's location on the map
-    threat_marker.location = [threat.lat, threat.lon]
+# Radar class: detects missiles and launches interceptors
+class Radar:
+    def __init__(self):
+        self.interceptors = []
 
-    # Save the updated map to an HTML file
-    m.save("realtime_threat_map.html")
+    def detect_and_launch(self, missile):
+        # Launch an interceptor for an incoming missile
+        interceptor = Interceptor(400, 500)  # Interceptor starts at fixed location
+        interceptor.calculate_interception(missile)
+        self.interceptors.append(interceptor)
 
-# Automatically open the saved HTML file in the default web browser
-webbrowser.open("realtime_threat_map.html")
+    def update_interceptors(self, missile):
+        for interceptor in self.interceptors:
+            interceptor.update_position()
+            if interceptor.has_intercepted(missile):
+                print("Missile intercepted!")
+                return True
+        return False
+
+# Simulation loop
+def main_simulation():
+    missile = Missile(random.randint(0, SCREEN_WIDTH), 0, 400, 500)  # Random incoming missile
+    radar = Radar()
+
+    running = True
+    while running:
+        screen.fill((0, 0, 0))  # Clear screen
+
+        # Draw the missile
+        missile.update_position()
+        pygame.draw.circle(screen, (255, 0, 0), (int(missile.x), int(missile.y)), 5)
+
+        # Detect missile and launch interceptor
+        radar.detect_and_launch(missile)
+
+        # Update interceptors and check for interception
+        intercepted = radar.update_interceptors(missile)
+        if intercepted or missile.is_at_target():
+            print("Simulation ended.")
+            running = False
+
+        # Draw the interceptor(s)
+        for interceptor in radar.interceptors:
+            pygame.draw.circle(screen, (0, 255, 0), (int(interceptor.x), int(interceptor.y)), 5)
+
+        pygame.display.flip()  # Update the display
+        pygame.time.delay(50)
+
+# Run the simulation
+main_simulation()
