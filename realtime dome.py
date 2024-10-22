@@ -15,12 +15,22 @@ FRAME_RATE = 60  # Frame rate for the simulation
 
 # Initialize Pygame
 pygame.init()
+pygame.mixer.init()  # Initialize the mixer for sound effects
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 clock = pygame.time.Clock()
+
+# Load sound effects
+missile_sound = pygame.mixer.Sound("./missile_launch.wav")
+explosion_sound = pygame.mixer.Sound("./explosion.mp3")
+
+# Font for score display
+font = pygame.font.Font(None, 36)
 
 # Missile class: represents an incoming threat
 class Missile:
     def __init__(self, start_x, start_y, target_x, target_y, speed):
+        self.start_x = start_x
+        self.start_y = start_y
         self.x = start_x
         self.y = start_y
         self.target_x = target_x
@@ -59,7 +69,7 @@ class Interceptor:
 
     def update_position(self):
         """Move the interceptor toward the target."""
-        if self.target_x and self.target_y:
+        if self.target_x is not None and self.target_y is not None:
             self.x += self.speed * math.cos(self.angle)
             self.y += self.speed * math.sin(self.angle)
 
@@ -93,6 +103,7 @@ class Radar:
         interceptor = Interceptor(self.x, self.y)
         interceptor.calculate_interception(missile)
         self.interceptors.append(interceptor)
+        missile_sound.play()  # Play missile launch sound
 
     def update_interceptors(self, missiles):
         """Update the positions of interceptors and check if any have intercepted a missile."""
@@ -102,22 +113,33 @@ class Radar:
             for missile in missiles:
                 if interceptor.has_intercepted(missile):
                     intercepted_missiles.append(missile)
+                    explosion_sound.play()  # Play explosion sound
                     print("Missile intercepted!")
         return intercepted_missiles
 
     def draw_radar(self):
         """Draw the radar with a rotating sweep line."""
-        pygame.draw.circle(screen, (0, 0, 255), RADAR_POSITION, RADAR_RADIUS, 1)  # Radar detection range
+        pygame.draw.circle(screen, (0, 0, 255), (self.x, self.y), RADAR_RADIUS, 1)  # Radar detection range
 
         # Radar sweep line
-        sweep_x = RADAR_POSITION[0] + RADAR_RADIUS * math.cos(self.sweep_angle)
-        sweep_y = RADAR_POSITION[1] + RADAR_RADIUS * math.sin(self.sweep_angle)
-        pygame.draw.line(screen, (0, 255, 255), RADAR_POSITION, (sweep_x, sweep_y), 2)
+        sweep_x = self.x + RADAR_RADIUS * math.cos(self.sweep_angle)
+        sweep_y = self.y + RADAR_RADIUS * math.sin(self.sweep_angle)
+        pygame.draw.line(screen, (0, 255, 255), (self.x, self.y), (sweep_x, sweep_y), 2)
+
+        # Arc indicating the radar sweep
+        start_angle = self.sweep_angle - 0.1
+        end_angle = self.sweep_angle + 0.1
+        pygame.draw.arc(screen, (0, 255, 255), (self.x - RADAR_RADIUS, self.y - RADAR_RADIUS, RADAR_RADIUS * 2, RADAR_RADIUS * 2), start_angle, end_angle, 2)
 
         # Update the radar sweep angle
         self.sweep_angle += RADAR_SWEEP_SPEED
         if self.sweep_angle >= 2 * math.pi:
             self.sweep_angle = 0
+
+# Function to draw explosions
+def draw_explosion(position):
+    pygame.draw.circle(screen, (255, 255, 0), (int(position[0]), int(position[1])), 15)
+    pygame.draw.circle(screen, (255, 0, 0), (int(position[0]), int(position[1])), 10)
 
 # Simulation loop
 def main_simulation():
@@ -125,6 +147,7 @@ def main_simulation():
     missiles = [Missile(random.randint(0, SCREEN_WIDTH), 0, *RADAR_POSITION, random.uniform(MIN_MISSILE_SPEED, MAX_MISSILE_SPEED)) for _ in range(5)]
     radar = Radar(*RADAR_POSITION)
     game_speed = 1  # Speed control for the simulation
+    score = 0  # Initialize score
     running = True
     paused = False  # Pause control
 
@@ -158,6 +181,8 @@ def main_simulation():
             intercepted_missiles = radar.update_interceptors(missiles)
             for missile in intercepted_missiles:
                 missiles.remove(missile)
+                draw_explosion((missile.x, missile.y))  # Draw explosion
+                score += 1  # Increase score
 
             # Draw interceptors
             for interceptor in radar.interceptors:
@@ -169,8 +194,13 @@ def main_simulation():
                 print("All missiles intercepted or reached the target. Simulation ended.")
                 running = False
 
+            # Draw score
+            score_text = font.render(f'Score: {score}', True, (255, 255, 255))
+            screen.blit(score_text, (10, 10))
+
             pygame.display.flip()  # Update the display
             clock.tick(FRAME_RATE * game_speed)  # Control frame rate based on game speed
 
 # Run the simulation
 main_simulation()
+pygame.quit()
