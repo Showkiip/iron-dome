@@ -5,13 +5,18 @@ import pygame
 # Constants
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
-MIN_MISSILE_SPEED = 3  # Minimum speed for missiles
-MAX_MISSILE_SPEED = 8  # Maximum speed for missiles
 INTERCEPTOR_SPEED = 10  # Speed of interceptor missile
 RADAR_RADIUS = 150  # Detection range of the radar
 RADAR_POSITION = (400, 500)  # Radar position on the screen
 RADAR_SWEEP_SPEED = 0.05  # Speed of radar sweep (radians per frame)
 FRAME_RATE = 60  # Frame rate for the simulation
+
+# Missile types
+MISSILE_TYPES = {
+    "fast": {"color": (255, 0, 0), "speed": random.uniform(6, 10), "size": 5},
+    "slow": {"color": (0, 255, 0), "speed": random.uniform(2, 5), "size": 7},
+    "explosive": {"color": (0, 0, 255), "speed": random.uniform(3, 7), "size": 6},
+}
 
 # Initialize Pygame
 pygame.init()
@@ -28,14 +33,16 @@ font = pygame.font.Font(None, 36)
 
 # Missile class: represents an incoming threat
 class Missile:
-    def __init__(self, start_x, start_y, target_x, target_y, speed):
+    def __init__(self, start_x, start_y, target_x, target_y, missile_type):
         self.start_x = start_x
         self.start_y = start_y
         self.x = start_x
         self.y = start_y
         self.target_x = target_x
         self.target_y = target_y
-        self.speed = speed  # Speed is now dynamic
+        self.color = missile_type["color"]
+        self.speed = missile_type["speed"]
+        self.size = missile_type["size"]
         self.angle = math.atan2(target_y - start_y, target_x - start_x)
 
     def update_position(self):
@@ -141,66 +148,105 @@ def draw_explosion(position):
     pygame.draw.circle(screen, (255, 255, 0), (int(position[0]), int(position[1])), 15)
     pygame.draw.circle(screen, (255, 0, 0), (int(position[0]), int(position[1])), 10)
 
+# Draw buttons
+# Draw additional buttons for missile types
+def draw_buttons():
+    # Launch Missile Type Buttons
+    pygame.draw.rect(screen, (255, 0, 0), (50, 50, 100, 40))  # Fast missile button
+    pygame.draw.rect(screen, (0, 255, 0), (200, 50, 100, 40))  # Slow missile button
+    pygame.draw.rect(screen, (0, 0, 255), (350, 50, 100, 40))  # Explosive missile button
+
+    # Draw button text
+    fast_text = font.render("Fast", True, (0, 0, 0))
+    slow_text = font.render("Slow", True, (0, 0, 0))
+    explosive_text = font.render("Explosive", True, (0, 0, 0))
+
+    screen.blit(fast_text, (70, 55))
+    screen.blit(slow_text, (220, 55))
+    screen.blit(explosive_text, (370, 55))
+
+# Check if missile launch button is clicked
+def check_button_click(pos):
+    x, y = pos
+    if 50 <= x <= 150 and 50 <= y <= 90:  # Fast missile button
+        return 'fast'
+    elif 200 <= x <= 300 and 50 <= y <= 90:  # Slow missile button
+        return 'slow'
+    elif 350 <= x <= 450 and 50 <= y <= 90:  # Explosive missile button
+        return 'explosive'
+    return None
+
+# Launch new missile of specified type
+def launch_missile(missile_type, missiles):
+    start_x = random.randint(0, SCREEN_WIDTH)
+    start_y = 0
+    target_x, target_y = RADAR_POSITION
+    missile = Missile(start_x, start_y, target_x, target_y, missile_type)
+    missiles.append(missile)
+    missile_sound.play()  # Play missile launch sound
+    print(f"{missile_type} missile launched!")
+
 # Simulation loop
 def main_simulation():
-    # Multiple incoming missiles with random speeds between MIN_MISSILE_SPEED and MAX_MISSILE_SPEED
-    missiles = [Missile(random.randint(0, SCREEN_WIDTH), 0, *RADAR_POSITION, random.uniform(MIN_MISSILE_SPEED, MAX_MISSILE_SPEED)) for _ in range(5)]
+    missiles = []  # List of missiles in flight
     radar = Radar(*RADAR_POSITION)
-    game_speed = 1  # Speed control for the simulation
-    score = 0  # Initialize score
+    game_speed = 1
+    score = 0
     running = True
-    paused = False  # Pause control
+    paused = False
 
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_p:  # Pause/resume simulation
-                    paused = not paused
-                if event.key == pygame.K_UP:  # Speed up the game
-                    game_speed += 1
-                if event.key == pygame.K_DOWN:  # Slow down the game
-                    game_speed = max(1, game_speed - 1)  # Prevent negative speed
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                button_action = check_button_click(event.pos)
+                if button_action == 'fast':
+                    launch_missile(MISSILE_TYPES["fast"], missiles)
+                elif button_action == 'slow':
+                    launch_missile(MISSILE_TYPES["slow"], missiles)
+                elif button_action == 'explosive':
+                    launch_missile(MISSILE_TYPES["explosive"], missiles)
 
         if not paused:
-            screen.fill((0, 0, 0))  # Clear screen
+            screen.fill((0, 0, 0))  # Clear the screen
 
-            # Draw the radar
             radar.draw_radar()
-
-            # Update and draw missiles
-            for missile in missiles:
-                missile.update_position()
-                pygame.draw.circle(screen, (255, 0, 0), (int(missile.x), int(missile.y)), 5)
-
-            # Radar detects missiles and launches interceptors
             radar.detect_and_launch(missiles)
 
-            # Update interceptors and check for interceptions
+            for missile in missiles.copy():
+                missile.update_position()
+                if missile.is_at_target():
+                    missiles.remove(missile)  # Remove missile if it hits the target
+                radar.detect_and_launch(missiles)
+
             intercepted_missiles = radar.update_interceptors(missiles)
             for missile in intercepted_missiles:
-                missiles.remove(missile)
-                draw_explosion((missile.x, missile.y))  # Draw explosion
+                missiles.remove(missile)  # Remove intercepted missiles
                 score += 1  # Increase score
+
+            # Draw missiles
+            for missile in missiles:
+                pygame.draw.circle(screen, missile.color, (int(missile.x), int(missile.y)), missile.size)
 
             # Draw interceptors
             for interceptor in radar.interceptors:
                 pygame.draw.circle(screen, (0, 255, 0), (int(interceptor.x), int(interceptor.y)), 5)
 
-            # End simulation if all missiles are intercepted or have reached the target
-            missiles = [m for m in missiles if not m.is_at_target()]
-            if not missiles:
-                print("All missiles intercepted or reached the target. Simulation ended.")
-                running = False
+            # Draw explosions for intercepted missiles
+            for missile in intercepted_missiles:
+                draw_explosion((missile.x, missile.y))
 
-            # Draw score
-            score_text = font.render(f'Score: {score}', True, (255, 255, 255))
-            screen.blit(score_text, (10, 10))
+            # Draw buttons and score
+            draw_buttons()
+            score_text = font.render(f"Score: {score}", True, (255, 255, 255))
+            screen.blit(score_text, (650, 20))
 
-            pygame.display.flip()  # Update the display
-            clock.tick(FRAME_RATE * game_speed)  # Control frame rate based on game speed
+        pygame.display.flip()
+        clock.tick(FRAME_RATE)
+
+    pygame.quit()
 
 # Run the simulation
 main_simulation()
-pygame.quit()
+
