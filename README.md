@@ -47,4 +47,5 @@ This project is open-source and available under the MIT License.
 If you have any questions, feel free to open an issue or contact us at [shan57409@gmail.com]. Let's collaborate and make this simulation great!
 
 # Preview
-![image](https://github.com/user-attachments/assets/d4dbc386-0e96-4f46-a97a-3d399599062c)
+![image](https://github.com/user-attachments/assets/dc60405e-fd62-4698-ac37-87a898df3292)
+
