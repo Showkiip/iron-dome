@@ -30,7 +30,7 @@ To get started with the Iron Dome simulation, you will need the following:
 
 1. Clone the repository:
    ```bash
-   [git clone https://github.com/your-username/iron-dome-simulations.git](https://github.com/Showkiip/iron-dome.git)
+  git clone  https://github.com/Showkiip/iron-dome.git
 
 # Contributions
 We welcome contributions from everyone! Feel free to fork the repo, make improvements, and open a pull request. Whether you are an expert or just starting, your help is appreciated.
